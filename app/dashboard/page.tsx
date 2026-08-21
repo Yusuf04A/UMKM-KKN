@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import { UploadCloud, Image as ImageIcon, X, Send, Copy, CheckCircle2, Sparkles } from 'lucide-react';
 import Image from 'next/image';
+import ReactMarkdown from 'react-markdown';
 
 export default function DashboardPage() {
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [tone, setTone] = useState('asik');
+    const [platform, setPlatform] = useState('Instagram');
     const [isGenerating, setIsGenerating] = useState(false);
     const [result, setResult] = useState('');
     const [isCopied, setIsCopied] = useState(false);
@@ -42,28 +44,41 @@ export default function DashboardPage() {
         if (!imageFile) return;
 
         setIsGenerating(true);
-        setResult(''); // Kosongkan hasil sebelumnya jika ada
+        setResult(''); // Kosongkan hasil sebelumnya
 
         try {
-            // Siapkan form data untuk dikirim ke backend
             const formData = new FormData();
             formData.append('image', imageFile);
             formData.append('tone', tone);
+            formData.append('platform', platform);
 
-            // Panggil API route yang kita buat
             const response = await fetch('/api/generate-caption', {
                 method: 'POST',
                 body: formData,
             });
 
-            const data = await response.json();
-
             if (!response.ok) {
-                throw new Error(data.error || 'Terjadi kesalahan dari server');
+                throw new Error('Server sedang penuh');
             }
 
-            // Tampilkan hasil dari AI
-            setResult(data.caption);
+            if (!response.body) throw new Error('Tidak ada response body');
+
+            // Membaca stream sepotong demi sepotong
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let done = false;
+            let streamedResult = '';
+
+            while (!done) {
+                const { value, done: doneReading } = await reader.read();
+                done = doneReading;
+                if (value) {
+                    const chunkValue = decoder.decode(value);
+                    streamedResult += chunkValue;
+                    setResult(streamedResult); // Update state setiap ada teks baru
+                }
+            }
+
         } catch (error: any) {
             alert(`Waduh, error nih: ${error.message}`);
         } finally {
@@ -104,6 +119,26 @@ export default function DashboardPage() {
                             </button>
                         </div>
                     )}
+                </div>
+
+                {/* Pilihan Target Platform */}
+                <div className="mb-6">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Target Platform</label>
+                    <div className="relative">
+                        <select
+                            value={platform}
+                            onChange={(e) => setPlatform(e.target.value)}
+                            className="block w-full appearance-none bg-gray-50 border border-gray-200 text-gray-700 py-3.5 px-4 pr-8 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 focus:border-transparent font-medium"
+                        >
+                            <option value="Instagram">📸 Instagram (Fokus visual & hashtag)</option>
+                            <option value="TikTok">🎵 TikTok (Singkat, fyp, & engaging)</option>
+                            <option value="Twitter">🐦 Twitter / X (Cocok untuk thread & viral)</option>
+                            <option value="Facebook">📘 Facebook (Lebih detail & kekeluargaan)</option>
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Pilihan Gaya Bahasa (Tone) */}
@@ -157,9 +192,17 @@ export default function DashboardPage() {
                             {isCopied ? <><CheckCircle2 className="w-4 h-4 text-green-600" /> Dicopy!</> : <><Copy className="w-4 h-4" /> Copy</>}
                         </button>
                     </div>
-                    <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">
-                        {result}
-                    </p>
+                    <div className="text-gray-800 whitespace-pre-wrap leading-relaxed text-sm md:text-base">
+                        <ReactMarkdown
+                            components={{
+                                // Konfigurasi agar teks tebal benar-benar dirender tebal di UI
+                                strong: ({ node, ...props }) => <span className="font-extrabold text-gray-900" {...props} />,
+                                p: ({ node, ...props }) => <p className="mb-4 last:mb-0" {...props} />
+                            }}
+                        >
+                            {result}
+                        </ReactMarkdown>
+                    </div>
                 </div>
             )}
         </div>
