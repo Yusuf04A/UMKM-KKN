@@ -1,15 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Sparkles, Mail, ArrowRight, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // Tambahkan ini
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [isSuccess, setIsSuccess] = useState(false);
+    const router = useRouter(); // Inisialisasi router
+
+    // Listener untuk mendeteksi kalau user sudah berhasil login
+    useEffect(() => {
+        const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+            // Jika terdeteksi ada sesi aktif (user sudah klik link di email), langsung lempar ke dashboard
+            if (session) {
+                router.push('/dashboard');
+            }
+        });
+
+        return () => {
+            authListener.subscription.unsubscribe();
+        };
+    }, [router]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -17,11 +33,9 @@ export default function LoginPage() {
         setMessage('');
         setIsSuccess(false);
 
-        // Menggunakan Magic Link Supabase
         const { error } = await supabase.auth.signInWithOtp({
             email,
             options: {
-                // Arahkan ke dashboard setelah login berhasil
                 emailRedirectTo: `${window.location.origin}/dashboard`,
             },
         });
@@ -30,11 +44,12 @@ export default function LoginPage() {
             setMessage(error.message);
         } else {
             setIsSuccess(true);
-            setMessage('Link ajaib telah dikirim! Cek kotak masuk email kamu.');
+            setMessage('Link ajaib telah dikirim! Cek kotak masuk email kamu dan klik tautannya.');
         }
         setLoading(false);
     };
 
+    // ... (Sisa kode UI di bawahnya tetap sama persis seperti sebelumnya)
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-6 font-sans">
             {/* Tombol kembali ke Beranda */}
