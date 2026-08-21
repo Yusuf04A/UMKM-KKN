@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { UploadCloud, Image as ImageIcon, X, Send, Copy, CheckCircle2, Sparkles } from 'lucide-react';
 import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
+import { supabase } from '@/lib/supabase'; // INI YANG BIKIN ERROR TADI (Sekarang sudah ditambahkan)
 
 export default function DashboardPage() {
     const [imageFile, setImageFile] = useState<File | null>(null);
@@ -14,23 +15,19 @@ export default function DashboardPage() {
     const [result, setResult] = useState('');
     const [isCopied, setIsCopied] = useState(false);
 
-    // Handle saat user memilih gambar
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
             setImageFile(file);
-            const previewUrl = URL.createObjectURL(file);
-            setImagePreview(previewUrl);
+            setImagePreview(URL.createObjectURL(file));
         }
     };
 
-    // Handle hapus gambar yang dipilih
     const clearImage = () => {
         setImageFile(null);
         setImagePreview(null);
     };
 
-    // Fungsi Copy to Clipboard
     const copyToClipboard = () => {
         if (result) {
             navigator.clipboard.writeText(result);
@@ -39,12 +36,11 @@ export default function DashboardPage() {
         }
     };
 
-    // Simulasi tombol Generate (Nanti kita hubungkan ke API Gemini)
     const handleGenerate = async () => {
         if (!imageFile) return;
 
         setIsGenerating(true);
-        setResult(''); // Kosongkan hasil sebelumnya
+        setResult('');
 
         try {
             const formData = new FormData();
@@ -52,18 +48,28 @@ export default function DashboardPage() {
             formData.append('tone', tone);
             formData.append('platform', platform);
 
+            // Ambil token untuk dikirim ke backend
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
             const response = await fetch('/api/generate-caption', {
                 method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
                 body: formData,
             });
 
             if (!response.ok) {
-                throw new Error('Server sedang penuh');
+                const errorData = await response.json().catch(() => ({}));
+                if (errorData.error === 'KUOTA_HABIS') {
+                    throw new Error('Kuota gratis kamu sudah habis! Yuk berlangganan untuk akses tanpa batas.');
+                }
+                throw new Error(errorData.error || 'Terjadi kesalahan dari server');
             }
 
             if (!response.body) throw new Error('Tidak ada response body');
 
-            // Membaca stream sepotong demi sepotong
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let done = false;
@@ -75,12 +81,12 @@ export default function DashboardPage() {
                 if (value) {
                     const chunkValue = decoder.decode(value);
                     streamedResult += chunkValue;
-                    setResult(streamedResult); // Update state setiap ada teks baru
+                    setResult(streamedResult);
                 }
             }
 
         } catch (error: any) {
-            alert(`Waduh, error nih: ${error.message}`);
+            setResult(`Maaf, ada kendala: ${error.message}\n\nCoba beberapa saat lagi ya!`);
         } finally {
             setIsGenerating(false);
         }
@@ -95,10 +101,9 @@ export default function DashboardPage() {
 
             <div className="bg-white p-5 md:p-7 rounded-3xl shadow-sm border border-gray-100">
 
-                {/* Area Upload Gambar */}
+                {/* Upload Gambar */}
                 <div className="mb-6">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Foto Produk</label>
-
                     {!imagePreview ? (
                         <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
                             <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -110,7 +115,7 @@ export default function DashboardPage() {
                         </label>
                     ) : (
                         <div className="relative w-full h-64 md:h-80 rounded-2xl overflow-hidden border border-gray-200">
-                            <Image src={imagePreview} alt="Preview Produk" fill className="object-cover" />
+                            <Image src={imagePreview} alt="Preview Produk" fill className="object-contain bg-gray-100" />
                             <button
                                 onClick={clearImage}
                                 className="absolute top-3 right-3 bg-white/80 backdrop-blur-md p-2 rounded-full text-gray-700 hover:text-red-600 hover:bg-white transition shadow-sm"
@@ -121,7 +126,7 @@ export default function DashboardPage() {
                     )}
                 </div>
 
-                {/* Pilihan Target Platform */}
+                {/* Target Platform */}
                 <div className="mb-6">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Target Platform</label>
                     <div className="relative">
@@ -141,7 +146,7 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                {/* Pilihan Gaya Bahasa (Tone) */}
+                {/* Gaya Bahasa */}
                 <div className="mb-8">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Gaya Bahasa Promosi</label>
                     <div className="relative">
@@ -162,28 +167,20 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                {/* Tombol Generate */}
                 <button
                     onClick={handleGenerate}
                     disabled={!imageFile || isGenerating}
                     className="w-full flex items-center justify-center gap-2 py-4 px-4 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    {isGenerating ? (
-                        <span className="animate-pulse">AI Sedang Berpikir... 🧠</span>
-                    ) : (
-                        <>
-                            Generate Caption <Send className="w-5 h-5" />
-                        </>
-                    )}
+                    {isGenerating ? <span className="animate-pulse">AI Sedang Berpikir... 🧠</span> : <>Generate Caption <Send className="w-5 h-5" /></>}
                 </button>
             </div>
 
-            {/* Area Hasil Generate */}
             {result && (
                 <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 md:p-8 rounded-3xl border border-blue-100 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="flex justify-between items-center mb-4 border-b border-blue-200 pb-4">
                         <h3 className="font-bold text-blue-900 flex items-center gap-2">
-                            <Sparkles className="w-5 h-5 text-blue-600" /> Hasil Caption
+                            <Sparkles className="w-5 h-5 text-blue-600" /> Hasil Caption {platform}
                         </h3>
                         <button
                             onClick={copyToClipboard}
@@ -195,7 +192,6 @@ export default function DashboardPage() {
                     <div className="text-gray-800 whitespace-pre-wrap leading-relaxed text-sm md:text-base">
                         <ReactMarkdown
                             components={{
-                                // Konfigurasi agar teks tebal benar-benar dirender tebal di UI
                                 strong: ({ node, ...props }) => <span className="font-extrabold text-gray-900" {...props} />,
                                 p: ({ node, ...props }) => <p className="mb-4 last:mb-0" {...props} />
                             }}
