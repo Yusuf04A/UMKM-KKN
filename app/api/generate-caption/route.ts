@@ -29,8 +29,8 @@ export async function POST(req: NextRequest) {
     Gunakan gaya bahasa: ${tone}. 
     Buat paragraf yang menarik, sertakan ajakan bertindak (Call to Action), dan tambahkan hashtag yang relevan. Jangan terlalu panjang, pastikan pas untuk dibaca di HP.`;
 
-        // 4. Panggil model Gemini (pakai 1.5 Flash karena cepat dan support gambar)
-        const model = genAI.getGenerativeModel({ model: 'gemini-3.7-flash' });
+        // 4. Panggil model Gemini (pakai 2.5 Flash karena cepat dan support gambar)
+        const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
         const result = await model.generateContent([prompt, imagePart]);
         const text = result.response.text();
 
