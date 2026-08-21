@@ -29,15 +29,8 @@ export async function POST(req: NextRequest) {
     Gunakan format markdown seperti **teks tebal** untuk penekanan hal penting. Berikan hashtag yang relevan. JANGAN buat caption untuk platform lain, fokus hanya pada ${platform}.`;
         const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
 
-<<<<<<< HEAD
-        // 4. Panggil model Gemini (pakai 2.5 Flash karena cepat dan support gambar)
-        const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
-        const result = await model.generateContent([prompt, imagePart]);
-        const text = result.response.text();
-=======
         // Ganti jadi stream
         const result = await model.generateContentStream([prompt, imagePart]);
->>>>>>> b4473ea0c0f1d585d57b1861cb84183f3fc6274b
 
         // Setup response sebagai stream agar front-end bisa menerimanya sepotong-sepotong
         const stream = new ReadableStream({
